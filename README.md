@@ -2,6 +2,8 @@
 
 > **Temel telefon özelliklerini fahiş aboneliklerle satanlara inat; %100 açık kaynak, reklamsız, gizlilik odaklı, sıfır maliyetli ve Rust ile güçlendirilmiş Hepsi-Bir-Arada QR Araç Kiti.**
 
+🚀 **Canlı Uygulama:** [https://tasdelenn.github.io/qr-toolkit/](https://tasdelenn.github.io/qr-toolkit/)
+
 [![Rust](https://img.shields.io/badge/Rust-1.80+-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-Wasm-654FF0.svg?logo=webassembly)](https://webassembly.org/)
 [![PWA](https://img.shields.io/badge/PWA-Ready-success.svg?logo=pwa)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
