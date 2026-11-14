@@ -11,7 +11,7 @@ export function encode_to_svg(text: string, ecl?: string | null): string;
 export function encode_to_matrix(text: string, ecl?: string | null): any;
 /**
  * Decodes a QR code from RGBA pixel data (standard canvas / ImageData format).
- * Returns the decoded string if found, or an error.
+ * Uses dual engines: rxing (ZXing Rust port with HybridBinarizer) and rqrr fallback.
  */
 export function decode_from_rgba(width: number, height: number, data: Uint8Array): string;
 

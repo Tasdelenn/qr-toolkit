@@ -10,6 +10,17 @@ const state = {
   activeTab: 'scan'
 };
 
+// Native BarcodeDetector (Chrome / Android / iOS 17+ Safari)
+let nativeBarcodeDetector = null;
+if ('BarcodeDetector' in window) {
+  try {
+    nativeBarcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    console.log('[Scanner] Native BarcodeDetector is supported and enabled.');
+  } catch (e) {
+    console.warn('[Scanner] Native BarcodeDetector init error:', e);
+  }
+}
+
 // DOM Elements
 const elements = {
   // Tabs
@@ -24,7 +35,6 @@ const elements = {
   // Scanner
   video: document.getElementById('scanner-video'),
   btnFlipCamera: document.getElementById('btn-flip-camera'),
-  btnToggleScan: document.getElementById('btn-toggle-scan'),
   scannerStatus: document.getElementById('scanner-status'),
   scannerResultCard: document.getElementById('scanner-result-card'),
   scannerResultText: document.getElementById('scanner-result-text'),
@@ -110,8 +120,7 @@ async function initializeWasm() {
   try {
     await initWasm();
     state.wasmReady = true;
-    console.log('[Rust Wasm] QR Toolkit Engine initialized successfully.');
-    // Initial QR generation
+    console.log('[Rust Wasm] QR Toolkit Dual-Engine initialized (rxing + rqrr).');
     updateQrGeneration();
   } catch (err) {
     console.error('[Rust Wasm] Failed to initialize Wasm module:', err);
@@ -124,7 +133,10 @@ function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
+        .then((reg) => {
+          console.log('[PWA] Service Worker registered:', reg.scope);
+          reg.update();
+        })
         .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
     });
   }
@@ -180,17 +192,14 @@ function initTabs() {
       const tabTarget = btn.getAttribute('data-tab');
       if (tabTarget === state.activeTab) return;
 
-      // Update buttons
       elements.tabBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      // Update contents
       elements.tabContents.forEach(c => c.classList.remove('active'));
       document.getElementById(`tab-${tabTarget}`).classList.add('active');
 
       state.activeTab = tabTarget;
 
-      // Handle camera start/stop
       if (tabTarget === 'scan') {
         startScanner();
       } else {
@@ -248,11 +257,17 @@ function requestScanFrame() {
   state.animFrameId = requestAnimationFrame(scanVideoFrame);
 }
 
-function scanVideoFrame() {
-  if (!state.isScanning || !state.wasmReady) {
+let lastScanTime = 0;
+const SCAN_INTERVAL_MS = 100; // ~10 scans per second for optimal CPU and responsiveness
+
+async function scanVideoFrame(timestamp) {
+  if (!state.isScanning) return;
+
+  if (timestamp - lastScanTime < SCAN_INTERVAL_MS) {
     requestScanFrame();
     return;
   }
+  lastScanTime = timestamp;
 
   const video = elements.video;
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -260,25 +275,62 @@ function scanVideoFrame() {
     const vh = video.videoHeight;
 
     if (vw > 0 && vh > 0) {
-      // Downsample large video frames for max performance (ideal ~480 to 640px)
-      const maxDim = 512;
-      const scale = Math.min(1, maxDim / Math.max(vw, vh));
-      const targetW = Math.round(vw * scale);
-      const targetH = Math.round(vh * scale);
-
-      sampleCanvas.width = targetW;
-      sampleCanvas.height = targetH;
-      sampleCtx.drawImage(video, 0, 0, targetW, targetH);
-
-      const imageData = sampleCtx.getImageData(0, 0, targetW, targetH);
-      try {
-        const decodedText = decode_from_rgba(targetW, targetH, imageData.data);
-        if (decodedText) {
-          onQrCodeDetected(decodedText);
-          return; // Stop scanning loop on success
+      // 1. First priority: Native Hardware BarcodeDetector if supported
+      if (nativeBarcodeDetector) {
+        try {
+          const barcodes = await nativeBarcodeDetector.detect(video);
+          if (barcodes.length > 0 && barcodes[0].rawValue) {
+            onQrCodeDetected(barcodes[0].rawValue);
+            return;
+          }
+        } catch (e) {
+          // Native detector error or not ready, fallback to Rust Wasm
         }
-      } catch (e) {
-        // No QR detected in this frame, continue
+      }
+
+      // 2. High-performance Rust WebAssembly Dual Engine (rxing + rqrr)
+      if (state.wasmReady) {
+        // Pass A: Center Viewfinder Region at FULL UNTOUCHED RESOLUTION
+        // This avoids downsampling blur when holding QR close to camera
+        const cropSize = Math.round(Math.min(vw, vh) * 0.75);
+        const cropX = Math.round((vw - cropSize) / 2);
+        const cropY = Math.round((vh - cropSize) / 2);
+
+        sampleCanvas.width = cropSize;
+        sampleCanvas.height = cropSize;
+        sampleCtx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize);
+
+        const cropImgData = sampleCtx.getImageData(0, 0, cropSize, cropSize);
+        try {
+          const decoded = decode_from_rgba(cropSize, cropSize, cropImgData.data);
+          if (decoded) {
+            onQrCodeDetected(decoded);
+            return;
+          }
+        } catch (e) {
+          // Not detected in center crop, proceed to full frame
+        }
+
+        // Pass B: Full Frame Scan (scaled to max 800px)
+        const maxDim = 800;
+        const scale = Math.min(1, maxDim / Math.max(vw, vh));
+        const fullW = Math.round(vw * scale);
+        const fullH = Math.round(vh * scale);
+
+        sampleCanvas.width = fullW;
+        sampleCanvas.height = fullH;
+        sampleCtx.drawImage(video, 0, 0, fullW, fullH);
+
+        const fullImgData = sampleCtx.getImageData(0, 0, fullW, fullH);
+        try {
+          const decoded = decode_from_rgba(fullW, fullH, fullImgData.data);
+          if (decoded) {
+            onQrCodeDetected(decoded);
+            return;
+          }
+        } catch (e) {
+          // No QR detected in this cycle
+        }
       }
     }
   }
@@ -287,7 +339,6 @@ function scanVideoFrame() {
 }
 
 function onQrCodeDetected(text) {
-  // Haptic feedback
   if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
 
   state.isScanning = false;
@@ -297,7 +348,6 @@ function onQrCodeDetected(text) {
   elements.scannerResultCard.style.display = 'flex';
   elements.scannerStatus.textContent = 'QR Kod başarıyla çözüldü! 🎉';
 
-  // URL action
   if (isUrl(text)) {
     elements.btnScannerOpen.style.display = 'flex';
     elements.btnScannerOpen.onclick = () => window.open(text, '_blank', 'noopener,noreferrer');
@@ -307,6 +357,7 @@ function onQrCodeDetected(text) {
 
   elements.btnScannerCopy.onclick = () => copyToClipboard(text);
   elements.btnScannerShare.onclick = () => shareContent('Taranan QR İçeriği', text, isUrl(text) ? text : '');
+  showToast('QR Kod Okundu! ✅');
 }
 
 // Flip Camera
@@ -337,11 +388,9 @@ function initFileDecoder() {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        // Show preview
         elements.filePreviewImg.src = img.src;
         elements.filePreviewContainer.style.display = 'block';
 
-        // Draw on canvas and decode with Rust Wasm
         sampleCanvas.width = img.naturalWidth;
         sampleCanvas.height = img.naturalHeight;
         sampleCtx.drawImage(img, 0, 0);
@@ -506,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initFileDecoder();
   initGenerator();
   initializeWasm().then(() => {
-    // Start camera by default on initial scan tab
     startScanner();
   });
 });

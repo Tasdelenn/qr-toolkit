@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 use qrcode::{EcLevel, QrCode};
 use qrcode::render::svg;
 use rqrr::PreparedImage;
+use rxing::{helpers::detect_in_luma_slice_with_hints, BarcodeFormat, DecodeHints};
 
 fn parse_ec_level(ecl: &str) -> EcLevel {
     match ecl.to_uppercase().as_str() {
@@ -56,7 +57,7 @@ pub fn encode_to_matrix(text: &str, ecl: Option<String>) -> Result<JsValue, JsVa
 }
 
 /// Decodes a QR code from RGBA pixel data (standard canvas / ImageData format).
-/// Returns the decoded string if found, or an error.
+/// Uses dual engines: rxing (ZXing Rust port with HybridBinarizer) and rqrr fallback.
 #[wasm_bindgen]
 pub fn decode_from_rgba(width: u32, height: u32, data: &[u8]) -> Result<String, JsValue> {
     let w = width as usize;
@@ -76,7 +77,28 @@ pub fn decode_from_rgba(width: u32, height: u32, data: &[u8]) -> Result<String, 
         grayscale.push(y);
     }
 
-    decode_from_luma_slice(w, h, &grayscale)
+    // Engine 1: rxing (ZXing port with industrial HybridBinarizer)
+    let mut hints = DecodeHints::default();
+    hints.TryHarder = Some(true);
+    if let Ok(res) = detect_in_luma_slice_with_hints(
+        &grayscale,
+        width,
+        height,
+        Some(BarcodeFormat::QR_CODE),
+        &mut hints,
+    ) {
+        let text = res.getText().to_string();
+        if !text.is_empty() {
+            return Ok(text);
+        }
+    }
+
+    // Engine 2: rqrr fallback
+    if let Ok(text) = decode_from_luma_slice(w, h, &grayscale) {
+        return Ok(text);
+    }
+
+    Err(JsValue::from_str("No QR code detected"))
 }
 
 /// Helper function to run rqrr detection on a grayscale buffer
@@ -99,7 +121,7 @@ fn decode_from_luma_slice(width: usize, height: usize, luma: &[u8]) -> Result<St
         }
     }
 
-    Err(JsValue::from_str("Detected QR grid but failed to decode content (damaged or corrupted)"))
+    Err(JsValue::from_str("Detected QR grid but failed to decode content"))
 }
 
 #[cfg(test)]
