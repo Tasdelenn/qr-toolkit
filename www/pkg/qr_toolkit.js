@@ -155,6 +155,7 @@ function passArray8ToWasm0(arg, malloc) {
 /**
  * Decodes a QR code from RGBA pixel data (standard canvas / ImageData format).
  * Uses dual engines: rxing (ZXing Rust port with HybridBinarizer) and rqrr fallback.
+ * Automatically handles both Standard (dark on light) and Inverted (light on dark) QR codes.
  * @param {number} width
  * @param {number} height
  * @param {Uint8Array} data

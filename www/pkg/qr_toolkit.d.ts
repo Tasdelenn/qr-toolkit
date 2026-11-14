@@ -12,6 +12,7 @@ export function encode_to_matrix(text: string, ecl?: string | null): any;
 /**
  * Decodes a QR code from RGBA pixel data (standard canvas / ImageData format).
  * Uses dual engines: rxing (ZXing Rust port with HybridBinarizer) and rqrr fallback.
+ * Automatically handles both Standard (dark on light) and Inverted (light on dark) QR codes.
  */
 export function decode_from_rgba(width: number, height: number, data: Uint8Array): string;
 

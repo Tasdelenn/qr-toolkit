@@ -1,4 +1,4 @@
-const CACHE_NAME = 'qr-toolkit-v2';
+const CACHE_NAME = 'qr-toolkit-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
