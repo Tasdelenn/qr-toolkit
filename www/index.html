@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>QR Toolkit | Rust & WebAssembly</title>
+  
+  <!-- PWA & iOS Safari Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="QR Toolkit">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 5h2v3h-2v-3zm3 0h3v3h-3v-3zm2-3h3v2h-3v-2zm-5-2h2v2h-2v-2z"/></svg>
+      </div>
+      <div>
+        <span class="brand-title">QR Toolkit</span>
+        <span class="badge-wasm">Rust Wasm</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Fullscreen / Normal Mode Toggle Button -->
+      <button id="btn-fullscreen" class="btn-icon" title="Tam Ekran Modunu Değiştir">
+        <svg id="fs-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        <span id="fs-text">Tam Ekran</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="scan">
+        <svg viewBox="0 0 24 24"><path d="M9.5 6.5v3h-3v-3h3M11 5H5v6h6V5zm-1.5 9.5v3h-3v-3h3M11 13H5v6h6v-6zm8-8v3h-3v-3h3M19 5h-6v6h6V5zm-4 8h1.5v1.5H15V13zm1.5 1.5H18V16h-1.5v-1.5zm-3 1.5H15V18h-1.5v-1.5zm4.5 0h1.5v1.5H18V16zm0 1.5h1.5V19H18v-1.5zm-3 0h1.5V19H15v-1.5zm-1.5 1.5H15V20h-1.5v-1zm4.5 0H19V20h-1v-1zM4 2h4v2H4v4H2V4a2 2 0 0 1 2-2zm16 0a2 2 0 0 1 2 2v4h-2V4h-4V2h4zM2 16h2v4h4v2H4a2 2 0 0 1-2-2v-4zm18 4h-4v2h4a2 2 0 0 0 2-2v-4h-2v4z"/></svg>
+        <span>Kamera</span>
+      </button>
+      <button class="tab-btn" data-tab="file">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
+        <span>Dosyadan Çöz</span>
+      </button>
+      <button class="tab-btn" data-tab="create">
+        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        <span>QR Oluştur</span>
+      </button>
+    </nav>
+
+    <!-- Tab 1: Live Camera Scanner -->
+    <section id="tab-scan" class="tab-content active">
+      <div class="scanner-container">
+        <video id="scanner-video" playsinline muted autoplay></video>
+        <div class="scanner-overlay">
+          <div class="scanner-frame">
+            <div class="laser-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scanner-controls">
+        <button id="btn-flip-camera" class="btn-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12c0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3-3 1.34-3 3zm11-4h-3.17L15 5.83V4c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.83L7.17 8H4c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-8 11c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+          <span>Kamerayı Çevir</span>
+        </button>
+      </div>
+
+      <p id="scanner-status" class="scanner-status">QR kodu vizörün içine tutun</p>
+
+      <!-- Scanner Result Card -->
+      <div id="scanner-result-card" class="result-card">
+        <div class="result-header">
+          <span class="result-badge">Taranan Veri</span>
+        </div>
+        <div id="scanner-result-text" class="result-content"></div>
+        <div class="result-actions">
+          <button id="btn-scanner-copy" class="btn-secondary">Kopyala</button>
+          <button id="btn-scanner-open" class="btn-primary" style="display:none;">Bağlantıyı Aç</button>
+          <button id="btn-scanner-share" class="btn-secondary">Paylaş</button>
+          <button id="btn-scanner-rescan" class="btn-primary">Tekrar Tara</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: File Decoder (zbarimg) -->
+    <section id="tab-file" class="tab-content">
+      <div id="dropzone" class="dropzone">
+        <svg class="dropzone-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+        <div>
+          <strong>QR Kod Görseli Seçin</strong>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Galeriden yükleyin veya buraya sürükleyip bırakın</p>
+        </div>
+        <input type="file" id="file-input" accept="image/*" style="display:none;">
+      </div>
+
+      <div id="file-preview-container" class="preview-container">
+        <img id="file-preview-img" alt="Yüklenen QR Önizleme">
+      </div>
+
+      <div id="file-result-card" class="result-card">
+        <div class="result-header">
+          <span class="result-badge">Çözülen İçerik</span>
+        </div>
+        <div id="file-result-text" class="result-content"></div>
+        <div class="result-actions">
+          <button id="btn-file-copy" class="btn-secondary">Kopyala</button>
+          <button id="btn-file-open" class="btn-primary" style="display:none;">Bağlantıyı Aç</button>
+          <button id="btn-file-share" class="btn-secondary">Paylaş</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: QR Generator (qrencode) -->
+    <section id="tab-create" class="tab-content">
+      <div class="generator-card">
+        <div>
+          <label class="input-label" for="gen-input">
+            <span>Metin veya Bağlantı (URL)</span>
+          </label>
+          <textarea id="gen-input" class="text-input" placeholder="QR koda dönüştürmek istediğiniz metni, bağlantıyı veya Wi-Fi bilgisini girin...">https://github.com/rust-lang/rust</textarea>
+        </div>
+
+        <div class="options-row">
+          <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Hata Düzeltme (ECL):</span>
+          <select id="gen-ecl" class="select-input">
+            <option value="L">L - Düşük (%7)</option>
+            <option value="M" selected>M - Standart (%15)</option>
+            <option value="Q">Q - Yüksek (%25)</option>
+            <option value="H">H - En Yüksek (%30)</option>
+          </select>
+        </div>
+
+        <div class="qr-result-box">
+          <div id="qr-svg-holder" class="qr-svg-holder"></div>
+        </div>
+
+        <div class="gen-actions">
+          <button id="btn-download-svg" class="btn-secondary">Vektörel SVG</button>
+          <button id="btn-download-png" class="btn-primary">Yüksek Çözünürlüklü PNG</button>
+          <button id="btn-share-qr" class="btn-secondary">Paylaş</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span id="toast-msg">Bildirim</span>
+  </div>
+
+  <!-- Main JavaScript Module -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
